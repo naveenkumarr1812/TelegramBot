@@ -14,10 +14,228 @@ from supabase import Client, create_client
 # Streamlit App Configuration
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Anime World Admin",
-    page_icon="🎬",
+    page_title="Anime World — Admin",
+    page_icon="▣",
     layout="wide",
     initial_sidebar_state="expanded",
+)
+
+# ---------------------------------------------------------------------------
+# Design system
+# ---------------------------------------------------------------------------
+# A flat, hairline-bordered "operations console" look: near-black canvas,
+# a single restrained amber accent reserved for status/primary actions,
+# no shadows, no gradients, one deliberate corner radius throughout.
+st.markdown(
+    """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+    --canvas:#0c0d0f;
+    --panel:#151719;
+    --panel-alt:#1a1d20;
+    --line:#292c30;
+    --line-strong:#3a3e43;
+    --ink:#e8e9eb;
+    --ink-mid:#9aa0a6;
+    --ink-low:#666b71;
+    --amber:#d3a625;
+    --amber-ink:#191204;
+    --good:#5aab7c;
+    --bad:#c96b6b;
+    --radius:5px;
+}
+
+html, body, [class*="css"]{
+    font-family:'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+code, .stCodeBlock, .aw-mono{
+    font-family:'IBM Plex Mono', ui-monospace, monospace !important;
+}
+
+.stApp{ background: var(--canvas) !important; color: var(--ink); }
+.block-container{ padding-top: 1.6rem; padding-bottom: 3rem; max-width: 1180px; }
+
+/* ---- Sidebar / rail ---- */
+section[data-testid="stSidebar"]{
+    background: var(--panel) !important;
+    border-right: 1px solid var(--line);
+}
+section[data-testid="stSidebar"] > div{ padding-top: 1.4rem; }
+.aw-wordmark{
+    display:flex; align-items:baseline; gap:8px;
+    padding: 0 0.4rem 0.9rem 0.4rem;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 0.9rem;
+}
+.aw-wordmark .mark{
+    width:20px; height:20px; border:1.5px solid var(--amber); border-radius:3px;
+    display:inline-flex; align-items:center; justify-content:center;
+    color: var(--amber); font-size:12px; font-weight:600; flex:none;
+}
+.aw-wordmark .name{ font-weight:600; font-size:0.95rem; color: var(--ink); letter-spacing:0.01em; }
+.aw-wordmark .tag{ font-size:0.68rem; color: var(--ink-low); text-transform: uppercase; letter-spacing:0.08em; }
+
+section[data-testid="stSidebar"] div[role="radiogroup"]{ gap: 1px; }
+section[data-testid="stSidebar"] div[role="radiogroup"] > label{
+    border-left: 2px solid transparent;
+    padding: 8px 10px 8px 8px;
+    border-radius: 0;
+    color: var(--ink-mid);
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] > label:hover{
+    background: var(--panel-alt);
+    color: var(--ink);
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked){
+    border-left: 2px solid var(--amber);
+    background: var(--panel-alt);
+    color: var(--ink);
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label p{ font-weight:500; font-size:0.88rem; }
+section[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p{ color: var(--ink-low); }
+
+/* sidebar footer status strip */
+.aw-rail-status{
+    margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--line);
+    display:flex; flex-direction:column; gap:6px;
+}
+.aw-rail-row{ display:flex; align-items:center; gap:8px; font-size:0.76rem; color: var(--ink-mid); }
+.aw-dot{ width:6px; height:6px; border-radius:50%; background: var(--ink-low); flex:none; }
+.aw-dot.good{ background: var(--good); }
+.aw-dot.bad{ background: var(--bad); }
+
+/* ---- Typography ---- */
+h1, h2, h3, h4{ color: var(--ink) !important; font-weight:600 !important; letter-spacing:-0.005em; }
+p, span, label, .stMarkdown{ color: var(--ink-mid); }
+hr{ border-color: var(--line) !important; margin: 1.1rem 0 !important; }
+
+/* ---- Page header component ---- */
+.aw-header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.9rem; margin-bottom: 1.3rem;
+}
+.aw-header h1{ font-size:1.35rem !important; margin:0 !important; }
+.aw-header .sub{ font-size:0.85rem; color: var(--ink-low); margin-top:2px; }
+.aw-header .env{
+    font-size:0.72rem; color: var(--ink-low); border: 1px solid var(--line);
+    padding: 3px 9px; border-radius: var(--radius); white-space:nowrap;
+}
+
+/* ---- Section label ---- */
+.aw-section{ font-size:0.82rem; font-weight:600; color: var(--ink); margin: 1.6rem 0 0.7rem 0; }
+
+/* ---- Flat panels (replace shadow cards) ---- */
+div[data-testid="stVerticalBlockBorderWrapper"]{
+    background: var(--panel) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: none !important;
+}
+div[data-testid="stForm"]{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.3rem 1.4rem 0.3rem 1.4rem;
+    box-shadow: none;
+}
+
+/* ---- Metrics (stat blocks) ---- */
+div[data-testid="stMetric"]{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+}
+div[data-testid="stMetricLabel"]{
+    color: var(--ink-low) !important; font-weight:500 !important; font-size:0.72rem !important;
+}
+div[data-testid="stMetricValue"]{ color: var(--ink) !important; font-weight:600 !important; font-size:1.5rem !important; }
+div[data-testid="stMetricDelta"]{ color: var(--ink-mid) !important; }
+
+/* ---- Inputs ---- */
+.stTextInput input, .stNumberInput input, textarea,
+.stMultiSelect [data-baseweb="select"] > div{
+    background: var(--panel-alt) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius) !important;
+}
+.stTextInput input:focus, textarea:focus{
+    border-color: var(--line-strong) !important;
+    box-shadow: 0 0 0 1px var(--line-strong) !important;
+}
+.stTextInput label p, .stNumberInput label p, .stMultiSelect label p, .stCheckbox label p{
+    color: var(--ink-mid) !important; font-weight:500 !important; font-size:0.85rem !important;
+}
+::placeholder{ color: var(--ink-low) !important; opacity:1; }
+.stMultiSelect span[data-baseweb="tag"]{
+    background: var(--panel-alt) !important; color: var(--ink) !important;
+    border: 1px solid var(--line-strong) !important; border-radius: 4px !important;
+}
+
+/* ---- Buttons: flat + hairline; primary uses the amber accent ---- */
+.stButton button, .stFormSubmitButton button{
+    background: var(--panel-alt) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--line-strong) !important;
+    border-radius: var(--radius) !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+    transition: border-color 0.12s ease, background 0.12s ease;
+}
+.stButton button:hover, .stFormSubmitButton button:hover{
+    border-color: var(--ink-low) !important;
+    background: #202327 !important;
+}
+.stButton button p, .stFormSubmitButton button p{ color: var(--ink) !important; }
+
+button[kind="primary"], .stFormSubmitButton button[kind="primary"]{
+    background: var(--amber) !important;
+    border: 1px solid var(--amber) !important;
+}
+button[kind="primary"] p{ color: var(--amber-ink) !important; font-weight:600 !important; }
+button[kind="primary"]:hover{ filter: brightness(1.06); }
+
+/* ---- Code / mono values ---- */
+.stCodeBlock{ background:#0a0b0c !important; border:1px solid var(--line) !important; border-radius: var(--radius) !important; }
+.stCodeBlock code{ color:#c8cdd3 !important; }
+
+/* ---- Alerts: flat, left rule instead of filled block ---- */
+div[data-testid="stAlert"]{
+    background: var(--panel) !important;
+    border: 1px solid var(--line) !important;
+    border-left: 3px solid var(--ink-low) !important;
+    border-radius: var(--radius) !important;
+}
+div[data-testid="stAlertContentSuccess"]{ color:#bfe3cd !important; }
+div[data-testid="stAlertContentError"]{ color:#f0cccc !important; }
+div[data-testid="stAlertContentWarning"]{ color:#ecd8ab !important; }
+div[data-testid="stAlertContentInfo"]{ color:#c7d0d8 !important; }
+
+/* status pill used for active/inactive + connection state */
+.aw-pill{ display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; color: var(--ink-mid); }
+.aw-pill .aw-dot{ width:7px; height:7px; }
+
+/* ---- Row list item (used for resources / channels) ---- */
+.aw-row-title{ font-size:0.98rem; font-weight:600; color: var(--ink); margin:0; }
+.aw-row-id{ color: var(--ink-low); font-size:0.78rem; }
+.aw-field-label{ font-size:0.72rem; color: var(--ink-low); text-transform:none; margin: 0.5rem 0 0.15rem 0; }
+
+/* ---- Responsive: phones ---- */
+@media (max-width: 640px){
+    .block-container{ padding-left: 0.85rem !important; padding-right: 0.85rem !important; padding-top: 1rem !important; }
+    .aw-header{ flex-direction: column; align-items:flex-start; gap:6px; }
+    .aw-header h1{ font-size: 1.15rem !important; }
+    div[data-testid="stForm"]{ padding: 1rem; }
+    div[data-testid="stMetric"]{ padding: 10px 12px; }
+    .stButton button, .stFormSubmitButton button{ width: 100%; }
+}
+</style>
+""",
+    unsafe_allow_html=True,
 )
 
 load_dotenv(override=True)
@@ -45,14 +263,14 @@ if not SUPABASE_KEY:
     SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("⚠️ `SUPABASE_URL` and `SUPABASE_KEY` are required in `.env` or Streamlit secrets.")
+    st.error("`SUPABASE_URL` and `SUPABASE_KEY` are required in `.env` or Streamlit secrets.")
     st.stop()
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 # ---------------------------------------------------------------------------
-# Helper Functions
+# Helper Functions (unchanged logic)
 # ---------------------------------------------------------------------------
 def get_bot_token() -> str:
     """Retrieve current Telegram bot token from secrets, environment, or .env."""
@@ -185,28 +403,77 @@ def count_rows(table: str) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Presentation helpers (visual only — no state or business logic)
+# ---------------------------------------------------------------------------
+def render_page_header(title: str, subtitle: str, env_label: str = "Production") -> None:
+    st.markdown(
+        f"""
+        <div class="aw-header">
+            <div>
+                <h1>{title}</h1>
+                <div class="sub">{subtitle}</div>
+            </div>
+            <div class="env">{env_label}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_section_label(text: str) -> None:
+    st.markdown(f'<div class="aw-section">{text}</div>', unsafe_allow_html=True)
+
+
+def status_pill_html(is_on: bool, on_label: str, off_label: str) -> str:
+    dot_class = "good" if is_on else "bad"
+    label = on_label if is_on else off_label
+    return f'<span class="aw-pill"><span class="aw-dot {dot_class}"></span>{label}</span>'
+
+
+# ---------------------------------------------------------------------------
 # Sidebar Navigation
 # ---------------------------------------------------------------------------
-st.sidebar.title("🎬 Anime World")
-st.sidebar.caption("Admin Management Panel")
+st.sidebar.markdown(
+    """
+    <div class="aw-wordmark">
+        <span class="mark">A</span>
+        <div>
+            <div class="name">Anime World</div>
+            <div class="tag">Admin Console</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 selected_page = st.sidebar.radio(
     "Navigation",
-    ["📊 Dashboard", "🎬 Anime Resources", "📢 Telegram Channels", "🤖 Bot Settings"],
+    ["Dashboard", "Anime Resources", "Telegram Channels", "Bot Settings"],
     index=0,
+    label_visibility="collapsed",
 )
 
 current_bot_token = get_bot_token()
 bot_username_env = os.getenv("BOT_USERNAME", "").strip().lstrip("@")
 
+_bot_configured = bool(current_bot_token)
+st.sidebar.markdown(
+    f"""
+    <div class="aw-rail-status">
+        <div class="aw-rail-row"><span class="aw-dot good"></span>Database connected</div>
+        <div class="aw-rail-row"><span class="aw-dot {'good' if _bot_configured else 'bad'}"></span>
+            Bot token {'configured' if _bot_configured else 'missing'}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 # ---------------------------------------------------------------------------
 # Page 1: Dashboard
 # ---------------------------------------------------------------------------
-if selected_page == "📊 Dashboard":
-    st.title("📊 Admin Dashboard")
-    st.caption("Overview and real-time statistics for Anime World system.")
-    st.divider()
+if selected_page == "Dashboard":
+    render_page_header("Dashboard", "System overview and live statistics.")
 
     try:
         total_resources = count_rows("resources")
@@ -217,49 +484,46 @@ if selected_page == "📊 Dashboard":
         total_resources = total_channels = total_users = 0
 
     bot_online = False
-    bot_display = "Not Configured"
+    bot_display = "Not configured"
     bot_sub = "Configure in Bot Settings"
 
     if current_bot_token:
         is_valid, b_info = check_telegram_bot(current_bot_token)
         if is_valid and isinstance(b_info, dict):
             bot_online = True
-            bot_display = "🟢 Online"
-            bot_sub = f"@{b_info.get('username', 'Bot')}"
+            bot_display = "Online"
+            bot_sub = f"@{b_info.get('username', 'bot')}"
         else:
-            bot_display = "🔴 Error"
-            bot_sub = "Invalid Token"
+            bot_display = "Error"
+            bot_sub = "Invalid token"
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Resources", total_resources)
-    col2.metric("Telegram Channels", total_channels)
-    col3.metric("Registered Users", total_users)
-    col4.metric("Bot Status", bot_display, bot_sub)
+    col1.metric("Total resources", total_resources)
+    col2.metric("Telegram channels", total_channels)
+    col3.metric("Registered users", total_users)
+    col4.metric("Bot status", bot_display, bot_sub)
 
-    st.divider()
-    st.subheader("🚀 Quick Actions & Guide")
+    render_section_label("Quick reference")
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         with st.container(border=True):
-            st.markdown("### 🎬 Manage Resources")
-            st.write("Add new anime download links and set required channel memberships.")
+            st.markdown("**Anime Resources**")
+            st.write("Add download links and set which channels a user must join to unlock each one.")
     with col_b:
         with st.container(border=True):
-            st.markdown("### 📢 Manage Channels")
-            st.write("Configure Telegram channels and automatic join-request invite links.")
+            st.markdown("**Telegram Channels**")
+            st.write("Register channels and generate join-request invite links automatically.")
     with col_c:
         with st.container(border=True):
-            st.markdown("### 🤖 Bot Configuration")
-            st.write("View connection health and update the Telegram Bot API token live.")
+            st.markdown("**Bot Settings**")
+            st.write("Check connection health and rotate the Telegram Bot API token.")
 
 
 # ---------------------------------------------------------------------------
 # Page 2: Anime Resources
 # ---------------------------------------------------------------------------
-elif selected_page == "🎬 Anime Resources":
-    st.title("🎬 Anime Resources")
-    st.caption("Create resources and generate Telegram deep links. Files remain stored on Google Drive.")
-    st.divider()
+elif selected_page == "Anime Resources":
+    render_page_header("Anime Resources", "Create resources and generate Telegram deep links. Files stay on Google Drive.")
 
     # Determine bot username for link generation
     active_bot_username = bot_username_env
@@ -269,7 +533,7 @@ elif selected_page == "🎬 Anime Resources":
             active_bot_username = info.get("username", "")
 
     if not active_bot_username:
-        st.warning("⚠️ Bot username not detected. Configure Bot Settings or set `BOT_USERNAME` in `.env`.")
+        st.warning("Bot username not detected. Configure Bot Settings or set `BOT_USERNAME` in `.env`.")
 
     try:
         channel_rows = supabase.table("telegram_channels").select("id,name").eq("is_active", True).order("name").execute().data or []
@@ -277,14 +541,14 @@ elif selected_page == "🎬 Anime Resources":
         st.error(f"Failed to load channels: {exc}")
         channel_rows = []
 
-    st.subheader("➕ Add New Resource")
+    render_section_label("Add a resource")
     with st.form("add_resource_form"):
-        name = st.text_input("Anime / Resource Name", placeholder="Example: Solo Leveling S01 — Complete Series")
-        drive_url = st.text_input("Google Drive Link", placeholder="https://drive.google.com/...")
+        name = st.text_input("Anime / resource name", placeholder="Solo Leveling S01 — Complete Series")
+        drive_url = st.text_input("Google Drive link", placeholder="https://drive.google.com/...")
         options = {f"{row['name']} (ID {row['id']})": row['id'] for row in channel_rows}
-        selected = st.multiselect("Required Channels", list(options), help="Users must join all selected channels to unlock download.")
+        selected = st.multiselect("Required channels", list(options), help="Users must join all selected channels to unlock the download.")
         active = st.checkbox("Resource is active", True)
-        submitted = st.form_submit_button("➕ Create Resource", use_container_width=True)
+        submitted = st.form_submit_button("Create resource", use_container_width=True, type="primary")
 
     if submitted:
         name = name.strip()
@@ -315,15 +579,14 @@ elif selected_page == "🎬 Anime Resources":
                     except Exception:
                         supabase.table("resources").delete().eq("id", rid).execute()
                         raise
-                    st.success("🎉 Resource created successfully!")
+                    st.success("Resource created successfully.")
                     if active_bot_username:
                         st.code(f"https://t.me/{active_bot_username}?start=resource_{rid}")
                     st.rerun()
             except Exception as exc:
                 st.error(f"Failed to create resource: {exc}")
 
-    st.divider()
-    st.subheader("📋 Existing Resources")
+    render_section_label("Existing resources")
     try:
         resources = supabase.table("resources").select("*").order("created_at", desc=True).execute().data or []
     except Exception as exc:
@@ -340,12 +603,15 @@ elif selected_page == "🎬 Anime Resources":
 
         with st.container(border=True):
             c1, c2 = st.columns([5, 1])
-            c1.markdown(f"### 🎬 {resource.get('name', 'Unnamed Resource')}")
-            c2.write("🟢 **Active**" if is_res_active else "🔴 **Inactive**")
-            st.write(f"**Resource ID**: `{rid}`")
-            st.write("**Google Drive Link**")
+            with c1:
+                st.markdown(f'<p class="aw-row-title">{resource.get("name", "Unnamed resource")}</p>', unsafe_allow_html=True)
+                st.markdown(f'<span class="aw-row-id">ID {rid}</span>', unsafe_allow_html=True)
+            with c2:
+                st.markdown(status_pill_html(is_res_active, "Active", "Inactive"), unsafe_allow_html=True)
+
+            st.markdown('<div class="aw-field-label">Google Drive link</div>', unsafe_allow_html=True)
             st.code(resource.get("drive_url") or "Not configured")
-            st.write("**Telegram Deep Link**")
+            st.markdown('<div class="aw-field-label">Telegram deep link</div>', unsafe_allow_html=True)
             st.code(bot_link or "Bot username required to generate link")
 
             try:
@@ -356,16 +622,17 @@ elif selected_page == "🎬 Anime Resources":
                     if isinstance(channel, list):
                         channel = channel[0] if channel else None
                     if channel:
-                        names.append(channel.get("name", "Unnamed Channel"))
-                st.write("**Required Channels:** " + (", ".join(names) if names else "None"))
+                        names.append(channel.get("name", "Unnamed channel"))
+                st.markdown('<div class="aw-field-label">Required channels</div>', unsafe_allow_html=True)
+                st.write(", ".join(names) if names else "None")
             except Exception as exc:
                 st.warning(f"Could not load required channels: {exc}")
 
             btn_col1, btn_col2 = st.columns(2)
-            if btn_col1.button("⛔ Disable" if is_res_active else "✅ Enable", key=f"toggle_res_{rid}", use_container_width=True):
+            if btn_col1.button("Disable" if is_res_active else "Enable", key=f"toggle_res_{rid}", use_container_width=True):
                 supabase.table("resources").update({"is_active": not is_res_active}).eq("id", rid).execute()
                 st.rerun()
-            if btn_col2.button("🗑️ Delete", key=f"del_res_{rid}", use_container_width=True):
+            if btn_col2.button("Delete", key=f"del_res_{rid}", use_container_width=True):
                 try:
                     supabase.table("resource_required_channels").delete().eq("resource_id", rid).execute()
                 except Exception:
@@ -377,24 +644,21 @@ elif selected_page == "🎬 Anime Resources":
 # ---------------------------------------------------------------------------
 # Page 3: Telegram Channels
 # ---------------------------------------------------------------------------
-elif selected_page == "📢 Telegram Channels":
-    st.title("📢 Telegram Channels")
-    st.caption("Manage channels users must join before unlocking resource links.")
-    st.divider()
+elif selected_page == "Telegram Channels":
+    render_page_header("Telegram Channels", "Manage channels users must join before unlocking resource links.")
 
     st.info(
-        "📌 **Important Setup Requirement**:\n"
-        "1. Add your Telegram Bot as an **Administrator** in each channel you register below.\n"
-        "2. Ensure the Bot has **'Invite Users via Link'** permission in the channel."
+        "Add your Telegram bot as an **Administrator** in each channel below, "
+        "and confirm it has the **Invite Users via Link** permission."
     )
 
-    st.subheader("➕ Add New Channel")
+    render_section_label("Add a channel")
     with st.form("add_channel_form"):
-        ch_name = st.text_input("Channel Name", placeholder="Example: Anime World Updates")
-        chat_id_text = st.text_input("Telegram Chat ID", placeholder="e.g. -1001234567890 (Channel ID with -100 prefix)")
-        ch_username = st.text_input("Public Username (optional)", placeholder="@examplechannel")
-        manual_link = st.text_input("Existing Invite Link (optional)", placeholder="Leave empty to auto-generate a join-request link")
-        ch_submitted = st.form_submit_button("➕ Add Channel", use_container_width=True)
+        ch_name = st.text_input("Channel name", placeholder="Anime World Updates")
+        chat_id_text = st.text_input("Telegram chat ID", placeholder="-1001234567890")
+        ch_username = st.text_input("Public username (optional)", placeholder="@examplechannel")
+        manual_link = st.text_input("Existing invite link (optional)", placeholder="Leave empty to auto-generate a join-request link")
+        ch_submitted = st.form_submit_button("Add channel", use_container_width=True, type="primary")
 
     if ch_submitted:
         ch_name = ch_name.strip()
@@ -418,7 +682,7 @@ elif selected_page == "📢 Telegram Channels":
                             ok, msg, details = check_bot_channel_permission(chat_id)
 
                         if not ok:
-                            st.error(f"❌ {msg}")
+                            st.error(msg)
                         else:
                             invite_link = manual_link
                             if not invite_link:
@@ -437,14 +701,13 @@ elif selected_page == "📢 Telegram Channels":
                                     "is_active": True,
                                 }).execute()
                                 if result.data:
-                                    st.success(f"🎉 Channel '{ch_name}' added successfully! (Bot Admin Status: Verified)")
+                                    st.success(f"Channel '{ch_name}' added successfully. Bot admin status verified.")
                                     st.rerun()
                                 st.error("Channel was not created in database.")
                 except Exception as exc:
                     st.error(f"Failed to add channel: {exc}")
 
-    st.divider()
-    st.subheader("📋 Existing Channels")
+    render_section_label("Existing channels")
     try:
         response = supabase.table("telegram_channels").select("*").order("created_at", desc=True).execute()
         channels = response.data or []
@@ -461,27 +724,31 @@ elif selected_page == "📢 Telegram Channels":
         chat_id_val = ch.get("chat_id")
         with st.container(border=True):
             c1, c2 = st.columns([5, 1])
-            c1.markdown(f"### 📢 {ch.get('name', 'Unnamed Channel')}")
-            c2.write("🟢 **Active**" if ch_active else "🔴 **Inactive**")
-            st.write(f"**Chat ID**: `{chat_id_val}`")
-            st.write(f"**Username**: `{ch.get('username') or '—'}`")
+            with c1:
+                st.markdown(f'<p class="aw-row-title">{ch.get("name", "Unnamed channel")}</p>', unsafe_allow_html=True)
+                st.markdown(f'<span class="aw-row-id">Chat ID {chat_id_val}</span>', unsafe_allow_html=True)
+            with c2:
+                st.markdown(status_pill_html(ch_active, "Active", "Inactive"), unsafe_allow_html=True)
+
+            st.markdown('<div class="aw-field-label">Username</div>', unsafe_allow_html=True)
+            st.write(ch.get("username") or "—")
             if ch.get("invite_link"):
-                st.write("**Invite / Join Request Link**")
+                st.markdown('<div class="aw-field-label">Invite / join-request link</div>', unsafe_allow_html=True)
                 st.code(ch["invite_link"])
 
             test_col, b_col1, b_col2 = st.columns([2, 1, 1])
-            if test_col.button("🔍 Check Bot Permissions", key=f"test_ch_{cid}", use_container_width=True):
+            if test_col.button("Check bot permissions", key=f"test_ch_{cid}", use_container_width=True):
                 if chat_id_val:
                     with st.spinner("Testing bot access to channel..."):
                         t_ok, t_msg, t_det = check_bot_channel_permission(chat_id_val)
                     if t_ok:
-                        st.success(f"✅ {t_msg}")
+                        st.success(t_msg)
                     else:
-                        st.error(f"❌ {t_msg}")
-            if b_col1.button("⛔ Disable" if ch_active else "✅ Enable", key=f"toggle_ch_{cid}", use_container_width=True):
+                        st.error(t_msg)
+            if b_col1.button("Disable" if ch_active else "Enable", key=f"toggle_ch_{cid}", use_container_width=True):
                 supabase.table("telegram_channels").update({"is_active": not ch_active}).eq("id", cid).execute()
                 st.rerun()
-            if b_col2.button("🗑️ Delete", key=f"del_ch_{cid}", use_container_width=True):
+            if b_col2.button("Delete", key=f"del_ch_{cid}", use_container_width=True):
                 try:
                     supabase.table("resource_required_channels").delete().eq("channel_id", cid).execute()
                 except Exception:
@@ -493,44 +760,41 @@ elif selected_page == "📢 Telegram Channels":
 # ---------------------------------------------------------------------------
 # Page 4: Bot Settings
 # ---------------------------------------------------------------------------
-elif selected_page == "🤖 Bot Settings":
-    st.title("🤖 Telegram Bot Settings")
-    st.caption("Manage and update your Telegram Bot API token directly from the admin panel.")
-    st.divider()
+elif selected_page == "Bot Settings":
+    render_page_header("Bot Settings", "Manage and rotate your Telegram Bot API token.")
 
-    st.subheader("Current Bot Status")
+    render_section_label("Current status")
     if current_bot_token:
         is_valid, bot_info = check_telegram_bot(current_bot_token)
         if is_valid and isinstance(bot_info, dict):
             col1, col2, col3 = st.columns(3)
-            col1.metric("Connection", "🟢 Connected")
-            col2.metric("Bot Username", f"@{bot_info.get('username', 'N/A')}")
+            col1.metric("Connection", "Connected")
+            col2.metric("Bot username", f"@{bot_info.get('username', 'N/A')}")
             col3.metric("Bot ID", str(bot_info.get("id", "N/A")))
 
             st.success(
-                f"**Active Bot**: `{bot_info.get('first_name', 'Bot')}` "
+                f"Active bot: **{bot_info.get('first_name', 'Bot')}** "
                 f"([@{bot_info.get('username')}](https://t.me/{bot_info.get('username')}))"
             )
         else:
-            st.error(f"🔴 Current token is invalid or unreachable: {bot_info}")
+            st.error(f"Current token is invalid or unreachable: {bot_info}")
     else:
-        st.warning("⚠️ No Telegram Bot API token is currently configured.")
+        st.warning("No Telegram Bot API token is currently configured.")
 
-    st.divider()
-    st.subheader("Update Bot API Key")
+    render_section_label("Update bot API key")
     st.write(
         "Enter a new Telegram Bot API token generated from "
-        "[**@BotFather**](https://t.me/BotFather) on Telegram."
+        "[@BotFather](https://t.me/BotFather) on Telegram."
     )
 
     with st.form("update_bot_token_form"):
         new_token_input = st.text_input(
-            "New Bot API Token",
+            "New bot API token",
             type="password",
-            placeholder="e.g. 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz",
+            placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz",
             help="Paste the bot token from @BotFather here.",
         )
-        token_submitted = st.form_submit_button("🔍 Test & Save New Bot Token", use_container_width=True)
+        token_submitted = st.form_submit_button("Test & save new token", use_container_width=True, type="primary")
 
     if token_submitted:
         if not new_token_input.strip():
@@ -544,14 +808,14 @@ elif selected_page == "🤖 Bot Settings":
                 try:
                     update_env_file(token_to_test)
                     st.success(
-                        f"✅ **Token successfully updated and saved!**\n\n"
-                        f"- **Bot Name**: {info.get('first_name')}\n"
+                        f"Token successfully updated and saved.\n\n"
+                        f"- **Bot name**: {info.get('first_name')}\n"
                         f"- **Username**: @{info.get('username')}\n"
                         f"- **Bot ID**: `{info.get('id')}`\n\n"
-                        f"📌 *Note: If the bot worker process is running in the background, restart it to reload the new token.*"
+                        f"If the bot worker process is running in the background, restart it to reload the new token."
                     )
                     st.rerun()
                 except Exception as e:
                     st.error(f"Failed to update `.env` file: {e}")
             else:
-                st.error(f"❌ Telegram API rejected this token: {info}")
+                st.error(f"Telegram API rejected this token: {info}")
