@@ -55,7 +55,7 @@ code, .stCodeBlock, .aw-mono{
 }
 
 .stApp{ background: var(--canvas) !important; color: var(--ink); }
-.block-container{ padding-top: 3.5rem; padding-bottom: 3rem; max-width: 1180px; }
+.block-container{ padding-top: 5.5rem; padding-bottom: 3rem; max-width: 1180px; }
 
 /* ---- Sidebar / rail ---- */
 section[data-testid="stSidebar"]{
