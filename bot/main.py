@@ -30,6 +30,31 @@ bot = Bot(
 dp = Dispatcher()
 
 
+def format_progress_message(name: str, total_count: int, missing_count: int) -> str:
+    """Format a clean visual progress message for channel requirements."""
+    completed = max(0, total_count - missing_count)
+    pct = int((completed / total_count) * 100) if total_count > 0 else 100
+    bar = "🟩" * completed + "⬜" * missing_count
+
+    if missing_count == 0:
+        return (
+            f"🎉 <b>All Channels Joined!</b>\n\n"
+            f"🎬 <b>{name}</b>\n\n"
+            f"📊 <b>Progress</b>: {completed}/{total_count} (100%)\n"
+            f"<code>{bar}</code>\n\n"
+            f"Click the button below to unlock your download link:"
+        )
+
+    return (
+        f"🔐 <b>Verification Required</b>\n\n"
+        f"🎬 <b>{name}</b>\n\n"
+        f"📊 <b>Progress</b>: {completed}/{total_count} Channels Joined ({pct}%)\n"
+        f"<code>{bar}</code>\n\n"
+        f"👉 Click the channel button(s) below to join/send request.\n"
+        f"Once done, click <b>Check Progress</b> to proceed."
+    )
+
+
 async def send_resource_result(target: Message, user_id: int, resource_id: int) -> None:
     resource = get_resource(resource_id)
     if not resource:
@@ -37,17 +62,16 @@ async def send_resource_result(target: Message, user_id: int, resource_id: int) 
         return
 
     channels = get_required_channels(resource_id)
+    total_count = len(channels)
     missing = await verify_user_channels(bot, user_id, channels)
     name = resource.get("name", "Anime")
     drive_url = resource.get("drive_url")
 
     if missing:
+        msg_text = format_progress_message(name, total_count, len(missing))
         await target.answer(
-            f"🔐 <b>Verification Required</b>\n\n"
-            f"🎬 <b>{name}</b>\n\n"
-            "Join every required channel below, then press "
-            "<b>Verify Again</b>.",
-            reply_markup=required_channels_keyboard(missing, resource_id),
+            msg_text,
+            reply_markup=required_channels_keyboard(missing, total_count, resource_id),
         )
         return
 
@@ -58,7 +82,8 @@ async def send_resource_result(target: Message, user_id: int, resource_id: int) 
     await target.answer(
         f"🎉 <b>Verification Successful!</b>\n\n"
         f"🎬 <b>{name}</b>\n\n"
-        "Your download is ready:",
+        f"✅ All {total_count} required channel(s) verified!\n\n"
+        "Your download link is ready below:",
         reply_markup=download_keyboard(drive_url),
     )
 
@@ -87,7 +112,7 @@ async def start_handler(message: Message, command: CommandObject):
     if resource_id is None:
         await message.answer(
             "👋 <b>Welcome to Anime World!</b>\n\n"
-            "Open a download button from the main channel to continue."
+            "Click a download button from our official channel or open a resource link to begin."
         )
         return
 
@@ -116,22 +141,26 @@ async def verify_callback(callback: CallbackQuery):
         return
 
     channels = get_required_channels(resource_id)
+    total_count = len(channels)
     missing = await verify_user_channels(bot, callback.from_user.id, channels)
     name = resource.get("name", "Anime")
     drive_url = resource.get("drive_url")
 
     if missing:
+        msg_text = format_progress_message(name, total_count, len(missing))
         try:
             await callback.message.edit_text(
-                f"❌ <b>Verification Incomplete</b>\n\n"
-                f"🎬 <b>{name}</b>\n\n"
-                "You still need to join the channel(s) below.",
-                reply_markup=required_channels_keyboard(missing, resource_id),
+                msg_text,
+                reply_markup=required_channels_keyboard(missing, total_count, resource_id),
             )
-            await callback.answer("❌ You still need to join the required channel(s).", show_alert=True)
+            completed = total_count - len(missing)
+            await callback.answer(f"📊 Progress: {completed}/{total_count} channels joined.")
         except TelegramBadRequest as exc:
             if "message is not modified" in str(exc):
-                await callback.answer("❌ You still need to join the required channel(s). Please click the channel link and request to join!", show_alert=True)
+                await callback.answer(
+                    "❌ You still haven't joined the remaining channel(s). Click the join button above first!",
+                    show_alert=True,
+                )
             else:
                 logger.warning("Failed to edit verification message: %s", exc)
         return
@@ -148,10 +177,11 @@ async def verify_callback(callback: CallbackQuery):
         await callback.message.edit_text(
             f"🎉 <b>Verification Successful!</b>\n\n"
             f"🎬 <b>{name}</b>\n\n"
-            "Your download is ready.",
+            f"✅ All {total_count} required channel(s) verified!\n\n"
+            "Your download link is ready below:",
             reply_markup=download_keyboard(drive_url),
         )
-        await callback.answer("🎉 Verification Successful!")
+        await callback.answer("🎉 Verification Complete! Enjoy your anime!")
     except TelegramBadRequest as exc:
         if "message is not modified" in str(exc):
             await callback.answer("🎉 Already verified!")
