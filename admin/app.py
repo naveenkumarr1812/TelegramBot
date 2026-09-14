@@ -226,7 +226,7 @@ div[data-testid="stAlertContentInfo"]{ color:#c7d0d8 !important; }
 
 /* ---- Responsive: phones ---- */
 @media (max-width: 640px){
-    .block-container{ padding-left: 0.85rem !important; padding-right: 0.85rem !important; padding-top: 1rem !important; }
+    .block-container{ padding-left: 0.85rem !important; padding-right: 0.85rem !important; padding-top: 4rem !important; }
     .aw-header{ flex-direction: column; align-items:flex-start; gap:6px; }
     .aw-header h1{ font-size: 1.15rem !important; }
     div[data-testid="stForm"]{ padding: 1rem; }
