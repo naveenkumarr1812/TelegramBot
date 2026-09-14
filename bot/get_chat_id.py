@@ -1,32 +1,23 @@
 import asyncio
-import os
+import sys
 
 from aiogram import Bot
-from dotenv import load_dotenv
 
-
-load_dotenv()
-
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+from config import TELEGRAM_BOT_TOKEN
 
 
 async def main():
-    bot = Bot(token=BOT_TOKEN)
-
+    if len(sys.argv) != 2:
+        print("Usage: python get_chat_id.py @channelusername")
+        return
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
     try:
         me = await bot.get_me()
-
+        chat = await bot.get_chat(sys.argv[1])
         print(f"Bot: @{me.username}")
-
-        # Replace with your channel username
-        chat = await bot.get_chat("@YOUR_CHANNEL_USERNAME")
-
-        print("Channel information")
-        print("-------------------")
-        print("Title:", chat.title)
-        print("ID:", chat.id)
-        print("Username:", chat.username)
-
+        print(f"Title: {chat.title}")
+        print(f"ID: {chat.id}")
+        print(f"Username: {chat.username}")
     finally:
         await bot.session.close()
 

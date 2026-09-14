@@ -1,64 +1,28 @@
 import streamlit as st
-
 from database import supabase
 
-
-st.set_page_config(
-    page_title="Anime World Admin",
-    page_icon="🎬",
-    layout="wide"
-)
-
+st.set_page_config(page_title="Anime World Admin", page_icon="🎬", layout="wide")
 
 st.title("🎬 Anime World Admin")
-
+st.caption("Control panel for resources and Telegram channel requirements.")
 st.divider()
 
 
-resources = (
-    supabase
-    .table("resources")
-    .select("id")
-    .execute()
-)
+def count_rows(table: str) -> int:
+    response = supabase.table(table).select("id").execute()
+    return len(response.data or [])
 
-channels = (
-    supabase
-    .table("telegram_channels")
-    .select("id")
-    .execute()
-)
+try:
+    resources = count_rows("resources")
+    channels = count_rows("telegram_channels")
+    users = count_rows("users")
+except Exception as exc:
+    st.error(f"Database connection/query failed: {exc}")
+    st.stop()
 
-users = (
-    supabase
-    .table("users")
-    .select("id")
-    .execute()
-)
+c1, c2, c3 = st.columns(3)
+c1.metric("Resources", resources)
+c2.metric("Channels", channels)
+c3.metric("Users", users)
 
-
-col1, col2, col3 = st.columns(3)
-
-
-with col1:
-
-    st.metric(
-        "Resources",
-        len(resources.data)
-    )
-
-
-with col2:
-
-    st.metric(
-        "Channels",
-        len(channels.data)
-    )
-
-
-with col3:
-
-    st.metric(
-        "Users",
-        len(users.data)
-    )
+st.info("Use the pages in the sidebar to manage Resources and Telegram Channels.")

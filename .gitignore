@@ -1,13 +1,39 @@
-.venv/
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 
+# Environments
 .env
+.env.local
+.env.*.local
+!.env.example
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 
-
+# Streamlit secrets and cache
 .streamlit/secrets.toml
+*/.streamlit/secrets.toml
+admin/.streamlit/secrets.toml
+.streamlit/
+admin/.streamlit/secrets.toml
 
+# IDE & Editor files
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
 
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & temporary files
 *.log
+*.tmp
