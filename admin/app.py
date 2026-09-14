@@ -126,6 +126,38 @@ def update_env_file(new_token: str) -> None:
     load_dotenv(override=True)
 
 
+def check_bot_channel_permission(chat_id: int) -> tuple[bool, str, dict | None]:
+    """Test whether the configured bot can access the given channel and is an admin."""
+    bot_token = get_bot_token()
+    if not bot_token:
+        return False, "Telegram Bot Token is not configured.", None
+
+    async def _check():
+        bot = Bot(token=bot_token)
+        try:
+            me = await bot.get_me()
+            chat = await bot.get_chat(chat_id=chat_id)
+            try:
+                member = await bot.get_chat_member(chat_id=chat_id, user_id=me.id)
+                status = getattr(member, "status", None)
+                is_admin = status in ("administrator", "creator")
+                return True, f"Connected to '{chat.title}' (Bot status: {status})", {
+                    "title": chat.title,
+                    "username": chat.username,
+                    "is_admin": is_admin,
+                    "status": status,
+                    "bot_username": me.username,
+                }
+            except Exception as e:
+                return False, f"Bot is not in the channel: {e}. Please add @{me.username} as an Administrator.", None
+        except Exception as exc:
+            return False, f"Cannot reach chat (chat_id={chat_id}): {exc}. Make sure @{bot_token[:10]}... is an Administrator in the channel.", None
+        finally:
+            await bot.session.close()
+
+    return asyncio.run(_check())
+
+
 def create_join_request_link(chat_id: int, name: str) -> str:
     """Generate a join-request invite link for a channel using Telegram Bot API."""
     bot_token = get_bot_token()
@@ -350,10 +382,16 @@ elif selected_page == "📢 Telegram Channels":
     st.caption("Manage channels users must join before unlocking resource links.")
     st.divider()
 
+    st.info(
+        "📌 **Important Setup Requirement**:\n"
+        "1. Add your Telegram Bot as an **Administrator** in each channel you register below.\n"
+        "2. Ensure the Bot has **'Invite Users via Link'** permission in the channel."
+    )
+
     st.subheader("➕ Add New Channel")
     with st.form("add_channel_form"):
         ch_name = st.text_input("Channel Name", placeholder="Example: Anime World Updates")
-        chat_id_text = st.text_input("Telegram Chat ID", placeholder="-1001234567890")
+        chat_id_text = st.text_input("Telegram Chat ID", placeholder="e.g. -1001234567890 (Channel ID with -100 prefix)")
         ch_username = st.text_input("Public Username (optional)", placeholder="@examplechannel")
         manual_link = st.text_input("Existing Invite Link (optional)", placeholder="Leave empty to auto-generate a join-request link")
         ch_submitted = st.form_submit_button("➕ Add Channel", use_container_width=True)
@@ -374,22 +412,34 @@ elif selected_page == "📢 Telegram Channels":
                 try:
                     existing = supabase.table("telegram_channels").select("id").eq("chat_id", chat_id).limit(1).execute()
                     if existing.data:
-                        st.warning("This channel is already configured.")
+                        st.warning("This channel is already configured in the database.")
                     else:
-                        invite_link = manual_link
-                        if not invite_link:
-                            invite_link = create_join_request_link(chat_id, ch_name)
-                        result = supabase.table("telegram_channels").insert({
-                            "name": ch_name,
-                            "chat_id": chat_id,
-                            "username": ch_username,
-                            "invite_link": invite_link,
-                            "is_active": True,
-                        }).execute()
-                        if result.data:
-                            st.success("🎉 Channel added successfully.")
-                            st.rerun()
-                        st.error("Channel was not created.")
+                        with st.spinner("Checking bot channel permissions..."):
+                            ok, msg, details = check_bot_channel_permission(chat_id)
+
+                        if not ok:
+                            st.error(f"❌ {msg}")
+                        else:
+                            invite_link = manual_link
+                            if not invite_link:
+                                try:
+                                    invite_link = create_join_request_link(chat_id, ch_name)
+                                except Exception as err:
+                                    st.error(f"Failed to generate join-request invite link: {err}")
+                                    invite_link = None
+
+                            if invite_link:
+                                result = supabase.table("telegram_channels").insert({
+                                    "name": ch_name,
+                                    "chat_id": chat_id,
+                                    "username": ch_username or (details.get("username") if details else None),
+                                    "invite_link": invite_link,
+                                    "is_active": True,
+                                }).execute()
+                                if result.data:
+                                    st.success(f"🎉 Channel '{ch_name}' added successfully! (Bot Admin Status: Verified)")
+                                    st.rerun()
+                                st.error("Channel was not created in database.")
                 except Exception as exc:
                     st.error(f"Failed to add channel: {exc}")
 
@@ -408,16 +458,26 @@ elif selected_page == "📢 Telegram Channels":
     for ch in channels:
         cid = ch["id"]
         ch_active = ch.get("is_active", True)
+        chat_id_val = ch.get("chat_id")
         with st.container(border=True):
             c1, c2 = st.columns([5, 1])
             c1.markdown(f"### 📢 {ch.get('name', 'Unnamed Channel')}")
             c2.write("🟢 **Active**" if ch_active else "🔴 **Inactive**")
-            st.write(f"**Chat ID**: `{ch.get('chat_id')}`")
+            st.write(f"**Chat ID**: `{chat_id_val}`")
             st.write(f"**Username**: `{ch.get('username') or '—'}`")
             if ch.get("invite_link"):
+                st.write("**Invite / Join Request Link**")
                 st.code(ch["invite_link"])
 
-            b_col1, b_col2 = st.columns(2)
+            test_col, b_col1, b_col2 = st.columns([2, 1, 1])
+            if test_col.button("🔍 Check Bot Permissions", key=f"test_ch_{cid}", use_container_width=True):
+                if chat_id_val:
+                    with st.spinner("Testing bot access to channel..."):
+                        t_ok, t_msg, t_det = check_bot_channel_permission(chat_id_val)
+                    if t_ok:
+                        st.success(f"✅ {t_msg}")
+                    else:
+                        st.error(f"❌ {t_msg}")
             if b_col1.button("⛔ Disable" if ch_active else "✅ Enable", key=f"toggle_ch_{cid}", use_container_width=True):
                 supabase.table("telegram_channels").update({"is_active": not ch_active}).eq("id", cid).execute()
                 st.rerun()

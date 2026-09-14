@@ -2,7 +2,9 @@ import logging
 from aiogram import Bot
 
 logger = logging.getLogger(__name__)
-VALID_STATUSES = {"member", "administrator", "creator"}
+
+# Valid member statuses in Telegram
+VALID_STATUSES = {"member", "administrator", "creator", "restricted"}
 
 
 async def verify_user_channels(bot: Bot, user_id: int, channels: list) -> list:
@@ -11,15 +13,31 @@ async def verify_user_channels(bot: Bot, user_id: int, channels: list) -> list:
         name = channel.get("name", "Unknown Channel")
         chat_id = channel.get("chat_id")
         if chat_id is None:
+            logger.error("Channel '%s' has no chat_id configured.", name)
             missing.append(channel)
             continue
         try:
             member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
             status = getattr(member, "status", None)
-            logger.info("Membership | user=%s channel=%s status=%s", user_id, name, status)
-            if status not in VALID_STATUSES:
+            is_member = getattr(member, "is_member", True) if status == "restricted" else True
+            logger.info(
+                "Membership check | user=%s channel='%s' (chat_id=%s) | status=%s is_member=%s",
+                user_id,
+                name,
+                chat_id,
+                status,
+                is_member,
+            )
+            if status not in VALID_STATUSES or (status == "restricted" and not is_member):
                 missing.append(channel)
-        except Exception:
-            logger.exception("Membership check failed | user=%s channel=%s", user_id, name)
+        except Exception as exc:
+            logger.warning(
+                "Membership check failed | user=%s channel='%s' (chat_id=%s): %s. "
+                "(Ensure the bot is added as an Administrator in this channel)",
+                user_id,
+                name,
+                chat_id,
+                exc,
+            )
             missing.append(channel)
     return missing
