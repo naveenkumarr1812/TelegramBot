@@ -69,6 +69,8 @@ async def start_handler(message: Message, command: CommandObject):
     if not user:
         return
 
+    logger.info("Received /start from user_id=%s (@%s) | args=%r", user.id, user.username, command.args)
+
     try:
         get_or_create_user(
             telegram_user_id=user.id,
@@ -186,7 +188,21 @@ async def chat_join_request_handler(event: ChatJoinRequest):
         logger.error("❌ Failed to auto-approve join request for user %s in '%s': %s", user.id, chat.title, exc)
 
 
+@dp.message()
+async def fallback_message_handler(message: Message):
+    logger.info("Received message: user_id=%s (@%s) | text=%r", message.from_user.id if message.from_user else "unknown", message.from_user.username if message.from_user else "", message.text)
+    await message.answer(
+        "👋 <b>Welcome to Anime World!</b>\n\n"
+        "Click a download button from our official channel or open a resource link to proceed."
+    )
+
+
 async def main():
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+    except Exception as e:
+        logger.warning("Could not delete webhook: %s", e)
+
     me = await bot.get_me()
     logger.info("Starting @%s (id=%s)", me.username, me.id)
     try:
