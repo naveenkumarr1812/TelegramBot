@@ -55,7 +55,7 @@ code, .stCodeBlock, .aw-mono{
 }
 
 .stApp{ background: var(--canvas) !important; color: var(--ink); }
-.block-container{ padding-top: 1.6rem; padding-bottom: 3rem; max-width: 1180px; }
+.block-container{ padding-top: 3.5rem; padding-bottom: 3rem; max-width: 1180px; }
 
 /* ---- Sidebar / rail ---- */
 section[data-testid="stSidebar"]{
@@ -503,20 +503,7 @@ if selected_page == "Dashboard":
     col3.metric("Registered users", total_users)
     col4.metric("Bot status", bot_display, bot_sub)
 
-    render_section_label("Quick reference")
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        with st.container(border=True):
-            st.markdown("**Anime Resources**")
-            st.write("Add download links and set which channels a user must join to unlock each one.")
-    with col_b:
-        with st.container(border=True):
-            st.markdown("**Telegram Channels**")
-            st.write("Register channels and generate join-request invite links automatically.")
-    with col_c:
-        with st.container(border=True):
-            st.markdown("**Bot Settings**")
-            st.write("Check connection health and rotate the Telegram Bot API token.")
+
 
 
 # ---------------------------------------------------------------------------
