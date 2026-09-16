@@ -917,7 +917,7 @@ elif selected_page == "Telegram Channels":
 # Page 4: Bot Settings
 # ---------------------------------------------------------------------------
 elif selected_page == "Bot Settings":
-    render_page_header("Bot Settings", "Manage and sync your Telegram Bot API token across Streamlit and Heroku.")
+    render_page_header("Bot Settings", "Manage and sync your Telegram Bot API token across Streamlit and Render.")
 
     current_token, token_source = get_bot_token_with_source()
 

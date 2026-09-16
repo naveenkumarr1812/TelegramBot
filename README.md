@@ -134,7 +134,7 @@ channel_id    foreign key -> telegram_channels.id
 
 Use a unique constraint on `(resource_id, channel_id)`.
 
-### `bot_settings` (for Streamlit & Heroku synchronization)
+### `bot_settings` (for Streamlit & Render synchronization)
 
 ```sql
 CREATE TABLE IF NOT EXISTS bot_settings (
@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS bot_settings (
 );
 ```
 
-This table acts as the single source of truth for the bot token (`key = 'telegram_bot_token'`) and bot username (`key = 'bot_username'`). When you enter or update the token in the Streamlit UI, it updates Supabase, and the Heroku bot worker loads it immediately.
+This table acts as the single source of truth for the bot token (`key = 'telegram_bot_token'`), bot username (`key = 'bot_username'`), and admin authentication (`admin_username`, `admin_password_hash`). When you enter or update the token in the Streamlit UI, it updates Supabase, and the Render bot worker loads it immediately.
 
 ## 4. Telegram bot permissions
 
@@ -163,19 +163,12 @@ The Channels page can generate a Telegram invite link with join requests enabled
 For a public channel, after adding/configuring the bot, run:
 
 ```powershell
-cd "D:\Code Playground\AnimeWorld\bot"
-..\ .venv\Scripts\python.exe get_chat_id.py @YourChannel
-```
-
-The command is normally:
-
-```powershell
-..\.venv\Scripts\python.exe get_chat_id.py @YourChannel
+..\.venv\Scripts\python.exe bot\get_chat_id.py @YourChannel
 ```
 
 It prints the Telegram channel ID.
 
-## 6. Start the bot locally or deploy to Heroku
+## 6. Start the bot locally or deploy to Render
 
 ### Option A: Local Run
 From the project root:
@@ -198,18 +191,6 @@ From the project root:
    *(No need to enter `TELEGRAM_BOT_TOKEN` on Render—it dynamically loads from Supabase!)*
 5. Click **Deploy Web Service**. Render will keep it alive and automatically pass health checks.
 
-### Option C: Deploy Bot to Heroku
-1. Create a new Heroku app (or link your Git repository to Heroku).
-2. Set only two Config Vars in your Heroku App Settings:
-   - `SUPABASE_URL` = `https://YOUR_PROJECT.supabase.co`
-   - `SUPABASE_KEY` = `YOUR_SUPABASE_SERVICE_OR_ANON_KEY`
-   *(You do NOT need to set `TELEGRAM_BOT_TOKEN` on Heroku—it will automatically fetch it from Supabase!)*
-3. Deploy your repository (Heroku will automatically detect `Procfile` with `worker: python bot/main.py`).
-4. Ensure the **worker** dyno is turned ON in the Heroku Resources tab:
-   ```bash
-   heroku ps:scale worker=1
-   ```
-
 
 ## 7. Start the admin panel (Streamlit)
 
@@ -228,7 +209,8 @@ cd "D:\Code Playground\AnimeWorld"
    SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
    SUPABASE_KEY = "YOUR_SUPABASE_KEY"
    ```
-3. Open your deployed Streamlit UI, go to **Bot Settings**, and enter your Telegram Bot API token. It saves to Supabase and immediately connects your Heroku bot!
+3. Open your deployed Streamlit UI, sign in with your credentials, go to **Bot Settings**, and enter your Telegram Bot API token. It saves to Supabase and immediately connects your Render bot!
+
 
 
 ## 8. Admin workflow
