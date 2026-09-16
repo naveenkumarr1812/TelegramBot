@@ -1,6 +1,8 @@
 import asyncio
+import hashlib
 import json
 import os
+import secrets
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -304,6 +306,96 @@ def set_db_setting(key: str, value: str) -> bool:
         return False
 
 
+def hash_password(password: str, salt: str = "") -> str:
+    """Hash a password using SHA-256 with a random salt."""
+    if not salt:
+        salt = secrets.token_hex(16)
+    pwd_hash = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+    return f"{salt}:{pwd_hash}"
+
+
+def verify_password(stored_hash_val: str, provided_password: str) -> bool:
+    """Verify a plain-text password against a stored salt:hash string."""
+    if not stored_hash_val or ":" not in stored_hash_val:
+        return False
+    salt, actual_hash = stored_hash_val.split(":", 1)
+    test_hash = hashlib.sha256((salt + provided_password).encode("utf-8")).hexdigest()
+    return secrets.compare_digest(test_hash, actual_hash)
+
+
+def get_admin_credentials() -> tuple[str, str]:
+    """
+    Retrieve admin username and password hash from Supabase bot_settings.
+    If not found, initializes default credentials from secrets/env or 'admin' / 'admin123'.
+    """
+    db_user = get_db_setting("admin_username")
+    db_pwd_hash = get_db_setting("admin_password_hash")
+
+    if db_user and db_pwd_hash:
+        return db_user, db_pwd_hash
+
+    fallback_user = "admin"
+    fallback_pwd = "admin123"
+    try:
+        if "ADMIN_USERNAME" in st.secrets and str(st.secrets["ADMIN_USERNAME"]).strip():
+            fallback_user = str(st.secrets["ADMIN_USERNAME"]).strip()
+        if "ADMIN_PASSWORD" in st.secrets and str(st.secrets["ADMIN_PASSWORD"]).strip():
+            fallback_pwd = str(st.secrets["ADMIN_PASSWORD"]).strip()
+    except Exception:
+        pass
+
+    fallback_user = os.getenv("ADMIN_USERNAME", fallback_user).strip()
+    fallback_pwd = os.getenv("ADMIN_PASSWORD", fallback_pwd).strip()
+
+    pwd_hash = hash_password(fallback_pwd)
+    set_db_setting("admin_username", fallback_user)
+    set_db_setting("admin_password_hash", pwd_hash)
+    return fallback_user, pwd_hash
+
+
+def update_admin_credentials(new_username: str, new_password: str) -> bool:
+    """Update admin username and hashed password in Supabase bot_settings."""
+    new_username = new_username.strip()
+    new_password = new_password.strip()
+    if not new_username or not new_password:
+        return False
+    pwd_hash = hash_password(new_password)
+    ok_user = set_db_setting("admin_username", new_username)
+    ok_pwd = set_db_setting("admin_password_hash", pwd_hash)
+    return ok_user and ok_pwd
+
+
+def render_login_page() -> None:
+    """Render a clean, secure admin login interface."""
+    render_page_header("System Authentication", "Sign in to access the administration console.", env_label="Secured")
+
+    _, col_mid, _ = st.columns([1, 1.3, 1])
+    with col_mid:
+        with st.form("admin_login_form"):
+            st.markdown(
+                """
+                <div style="margin-bottom: 1.2rem;">
+                    <div style="font-weight: 600; font-size: 1.05rem; color: var(--ink);">Admin Login</div>
+                    <div style="font-size: 0.8rem; color: var(--ink-low); margin-top: 2px;">Enter authorized credentials to continue</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            input_user = st.text_input("Username", placeholder="admin")
+            input_pwd = st.text_input("Password", type="password", placeholder="••••••••")
+            submit_login = st.form_submit_button("Sign in", use_container_width=True, type="primary")
+
+        if submit_login:
+            stored_user, stored_hash = get_admin_credentials()
+            input_user = input_user.strip()
+            if input_user == stored_user and verify_password(stored_hash, input_pwd):
+                st.session_state["authenticated"] = True
+                st.session_state["admin_user"] = stored_user
+                st.rerun()
+            else:
+                st.error("Authentication failed: Invalid username or password.")
+
+
 def get_bot_token_with_source() -> tuple[str, str]:
     """
     Retrieve bot token and its source:
@@ -493,6 +585,16 @@ def status_pill_html(is_on: bool, on_label: str, off_label: str) -> str:
 # ---------------------------------------------------------------------------
 # Sidebar Navigation
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Authentication Gate
+# ---------------------------------------------------------------------------
+if not st.session_state.get("authenticated", False):
+    render_login_page()
+    st.stop()
+
+# ---------------------------------------------------------------------------
+# Sidebar Navigation
+# ---------------------------------------------------------------------------
 st.sidebar.markdown(
     """
     <div class="aw-wordmark">
@@ -508,7 +610,7 @@ st.sidebar.markdown(
 
 selected_page = st.sidebar.radio(
     "Navigation",
-    ["Dashboard", "Anime Resources", "Telegram Channels", "Bot Settings"],
+    ["Dashboard", "Anime Resources", "Telegram Channels", "Bot Settings", "Admin Security"],
     index=0,
     label_visibility="collapsed",
 )
@@ -523,10 +625,15 @@ st.sidebar.markdown(
         <div class="aw-rail-row"><span class="aw-dot good"></span>Database connected</div>
         <div class="aw-rail-row"><span class="aw-dot {'good' if _bot_configured else 'bad'}"></span>
             Bot token {'configured' if _bot_configured else 'missing'}</div>
+        <div class="aw-rail-row"><span class="aw-dot good"></span>User: {st.session_state.get('admin_user', 'admin')}</div>
     </div>
     """,
     unsafe_allow_html=True,
 )
+
+if st.sidebar.button("Sign out", use_container_width=True):
+    st.session_state["authenticated"] = False
+    st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -833,27 +940,11 @@ elif selected_page == "Bot Settings":
     else:
         st.warning("No Telegram Bot API token is currently configured.")
 
-    render_section_label("Supabase Database Setup (One-Time)")
-    st.markdown(
-        """
-        To allow your **Heroku Bot Worker** and **Streamlit Admin Panel** to share the bot token automatically without configuring secrets twice,
-        make sure the `bot_settings` table exists in your **Supabase SQL Editor**:
-        """
-    )
-    st.code(
-        """CREATE TABLE IF NOT EXISTS bot_settings (
-    key TEXT PRIMARY KEY,
-    value TEXT,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);""",
-        language="sql",
-    )
-
     render_section_label("Update bot API key")
     st.write(
         "Enter a new Telegram Bot API token generated from "
         "[@BotFather](https://t.me/BotFather) on Telegram. "
-        "Saving here persists it directly into **Supabase**, so your Heroku bot automatically detects it."
+        "Saving here persists it directly into Supabase, so your bot worker automatically connects."
     )
 
     with st.form("update_bot_token_form"):
@@ -885,17 +976,61 @@ elif selected_page == "Bot Settings":
 
                 if saved_to_db:
                     st.success(
-                        f"✅ **Token successfully validated and saved to Supabase!**\n\n"
-                        f"- **Bot name**: {info.get('first_name')}\n"
-                        f"- **Username**: @{info.get('username')}\n"
-                        f"- **Bot ID**: `{info.get('id')}`\n\n"
-                        f"Your Heroku bot worker (`bot/main.py`) will automatically fetch this token without any restart needed."
+                        f"Token successfully validated and saved to Supabase.\n\n"
+                        f"- Bot name: {info.get('first_name')}\n"
+                        f"- Username: @{info.get('username')}\n"
+                        f"- Bot ID: {info.get('id')}\n\n"
+                        f"Your bot worker will automatically fetch and use this token."
                     )
                 else:
-                    st.warning(
-                        f"Token is valid and was updated in memory/local env, but could not be saved to Supabase `bot_settings` table. "
-                        f"Please run the `CREATE TABLE bot_settings` SQL script above in your Supabase SQL Editor."
-                    )
+                    st.warning("Token is valid, but could not be saved to Supabase bot_settings table.")
                 st.rerun()
             else:
-                st.error(f"Telegram API rejected this token: {info}")
+                st.error(f"Telegram API rejected this token: {info}")
+
+
+# ---------------------------------------------------------------------------
+# Page 5: Admin Security
+# ---------------------------------------------------------------------------
+elif selected_page == "Admin Security":
+    render_page_header("Admin Security", "Manage administrator authentication and credentials.")
+
+    current_admin_user, _ = get_admin_credentials()
+
+    render_section_label("Account overview")
+    col1, col2 = st.columns(2)
+    col1.metric("Current admin", current_admin_user)
+    col2.metric("Authentication storage", "Supabase Database")
+
+    render_section_label("Change credentials")
+    st.write("Update your admin username and password. Changes are saved directly to Supabase and persist across reboots.")
+
+    with st.form("change_admin_credentials_form"):
+        curr_pwd_input = st.text_input("Current password", type="password", placeholder="Enter current password")
+        new_user_input = st.text_input("New username", value=current_admin_user)
+        new_pwd_input = st.text_input("New password", type="password", placeholder="Enter new password")
+        confirm_pwd_input = st.text_input("Confirm new password", type="password", placeholder="Confirm new password")
+        save_cred_submitted = st.form_submit_button("Update credentials", use_container_width=True, type="primary")
+
+    if save_cred_submitted:
+        _, stored_hash = get_admin_credentials()
+        if not curr_pwd_input.strip():
+            st.error("Please enter your current password.")
+        elif not verify_password(stored_hash, curr_pwd_input.strip()):
+            st.error("Current password is incorrect.")
+        elif not new_user_input.strip():
+            st.error("Username cannot be empty.")
+        elif not new_pwd_input.strip():
+            st.error("New password cannot be empty.")
+        elif len(new_pwd_input.strip()) < 4:
+            st.error("New password must be at least 4 characters.")
+        elif new_pwd_input != confirm_pwd_input:
+            st.error("New passwords do not match.")
+        else:
+            ok = update_admin_credentials(new_user_input.strip(), new_pwd_input.strip())
+            if ok:
+                st.session_state["admin_user"] = new_user_input.strip()
+                st.success("Admin credentials successfully updated and stored in Supabase.")
+                st.rerun()
+            else:
+                st.error("Failed to update credentials in Supabase.")
