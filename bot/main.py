@@ -15,7 +15,7 @@ from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import CallbackQuery, ChatJoinRequest, Message
 
 from config import get_active_bot_token, get_active_bot_username
-from database import get_or_create_user, get_setting
+from database import get_channel_by_chat_id, get_or_create_user, get_setting, record_channel_join_request
 from keyboards import download_keyboard, required_channels_keyboard
 from services import get_required_channels, get_resource, parse_resource_parameter
 from verification import verify_user_channels
@@ -197,7 +197,10 @@ async def verify_callback(callback: CallbackQuery, bot: Bot):
 
 @dp.chat_join_request()
 async def chat_join_request_handler(event: ChatJoinRequest, bot: Bot):
-    """Automatically approve channel join requests so users can pass verification."""
+    """
+    Record channel join requests in Supabase so users pass verification.
+    IMPORTANT: The bot NEVER approves the request automatically; it stays pending in Telegram.
+    """
     user = event.from_user
     chat = event.chat
     logger.info(
@@ -208,20 +211,21 @@ async def chat_join_request_handler(event: ChatJoinRequest, bot: Bot):
         chat.title,
     )
     try:
-        get_or_create_user(
+        db_user = get_or_create_user(
             telegram_user_id=user.id,
             username=user.username,
             first_name=user.first_name,
             last_name=user.last_name,
         )
+        ch = get_channel_by_chat_id(chat.id)
+        if ch and db_user:
+            record_channel_join_request(db_user["id"], ch["id"])
+            logger.info("Recorded join request for user %s in channel '%s' (ID %s). Request stays pending.", user.id, chat.title, ch["id"])
+        else:
+            logger.warning("Channel with chat_id=%s is not configured in database.", chat.id)
     except Exception as exc:
-        logger.warning("Failed to save user on join request: %s", exc)
+        logger.warning("Failed to record join request for user %s in '%s': %s", user.id, chat.title, exc)
 
-    try:
-        await event.approve()
-        logger.info("✅ Successfully approved join request for user %s in '%s'", user.id, chat.title)
-    except Exception as exc:
-        logger.error("❌ Failed to auto-approve join request for user %s in '%s': %s", user.id, chat.title, exc)
 
 
 @dp.message()

@@ -137,3 +137,79 @@ def get_all_settings() -> dict[str, str]:
         logger.debug("Could not retrieve all bot_settings: %s", exc)
     return {}
 
+
+def get_channel_by_chat_id(chat_id: int) -> Optional[dict]:
+    """Fetch a channel record from telegram_channels by its chat_id."""
+    try:
+        res = (
+            supabase.table("telegram_channels")
+            .select("*")
+            .eq("chat_id", chat_id)
+            .limit(1)
+            .execute()
+        )
+        return res.data[0] if res.data else None
+    except Exception as exc:
+        logger.error("Could not fetch channel by chat_id %s: %s", chat_id, exc)
+        return None
+
+
+def record_channel_join_request(user_db_id: int, channel_db_id: int) -> bool:
+    """
+    Record a user's join request in channel_join_requests without approving it.
+    Does not duplicate records if already present.
+    """
+    try:
+        existing = (
+            supabase.table("channel_join_requests")
+            .select("id")
+            .eq("user_id", user_db_id)
+            .eq("channel_id", channel_db_id)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            return True
+
+        supabase.table("channel_join_requests").insert({
+            "user_id": user_db_id,
+            "channel_id": channel_db_id,
+            "status": "requested",
+        }).execute()
+        logger.info("Recorded join request in Supabase for user_id=%s, channel_id=%s", user_db_id, channel_db_id)
+        return True
+    except Exception as exc:
+        logger.error("Failed to record channel join request: %s", exc)
+        return False
+
+
+def get_user_requested_channel_ids(telegram_user_id: int) -> set[int]:
+    """
+    Retrieve the set of channel IDs (primary keys) that the user has already
+    requested to join or joined in Supabase.
+    """
+    try:
+        user_res = (
+            supabase.table("users")
+            .select("id")
+            .eq("telegram_id", telegram_user_id)
+            .limit(1)
+            .execute()
+        )
+        if not user_res.data:
+            return set()
+
+        user_db_id = user_res.data[0]["id"]
+        res = (
+            supabase.table("channel_join_requests")
+            .select("channel_id")
+            .eq("user_id", user_db_id)
+            .execute()
+        )
+        if res.data:
+            return {row["channel_id"] for row in res.data if "channel_id" in row and row["channel_id"] is not None}
+    except Exception as exc:
+        logger.debug("Error checking requested channels for user %s: %s", telegram_user_id, exc)
+    return set()
+
+

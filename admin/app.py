@@ -646,9 +646,10 @@ if selected_page == "Dashboard":
         total_resources = count_rows("resources")
         total_channels = count_rows("telegram_channels")
         total_users = count_rows("users")
+        total_requests = count_rows("channel_join_requests")
     except Exception as exc:
         st.error(f"Failed to fetch database counts: {exc}")
-        total_resources = total_channels = total_users = 0
+        total_resources = total_channels = total_users = total_requests = 0
 
     bot_online = False
     bot_display = "Not configured"
@@ -664,11 +665,12 @@ if selected_page == "Dashboard":
             bot_display = "Error"
             bot_sub = "Invalid token"
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Total resources", total_resources)
     col2.metric("Telegram channels", total_channels)
     col3.metric("Registered users", total_users)
-    col4.metric("Bot status", bot_display, bot_sub)
+    col4.metric("Join requests", total_requests)
+    col5.metric("Bot status", bot_display, bot_sub)
 
 
 
