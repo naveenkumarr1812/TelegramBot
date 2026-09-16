@@ -88,3 +88,52 @@ def get_required_channels(resource_id: int):
         if channel and channel.get("is_active", True):
             channels.append(channel)
     return channels
+
+
+def get_setting(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Retrieve a configuration value from the bot_settings table."""
+    try:
+        res = (
+            supabase.table("bot_settings")
+            .select("value")
+            .eq("key", key)
+            .limit(1)
+            .execute()
+        )
+        if res.data and len(res.data) > 0:
+            val = res.data[0].get("value")
+            if val is not None and str(val).strip():
+                return str(val).strip()
+    except Exception as exc:
+        logger.debug("Could not read setting '%s' from bot_settings: %s", key, exc)
+    return default
+
+
+def set_setting(key: str, value: str) -> bool:
+    """Upsert a configuration key/value into the bot_settings table."""
+    try:
+        res = (
+            supabase.table("bot_settings")
+            .upsert({"key": key, "value": value})
+            .execute()
+        )
+        return bool(res.data)
+    except Exception as exc:
+        logger.error("Failed to update bot_setting '%s': %s", key, exc)
+        return False
+
+
+def get_all_settings() -> dict[str, str]:
+    """Retrieve all configuration key/value pairs from bot_settings."""
+    try:
+        res = supabase.table("bot_settings").select("key, value").execute()
+        if res.data:
+            return {
+                row["key"]: row["value"]
+                for row in res.data
+                if "key" in row and row["value"] is not None
+            }
+    except Exception as exc:
+        logger.debug("Could not retrieve all bot_settings: %s", exc)
+    return {}
+

@@ -270,30 +270,85 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 # ---------------------------------------------------------------------------
-# Helper Functions (unchanged logic)
+# Helper Functions
 # ---------------------------------------------------------------------------
-def get_bot_token() -> str:
-    """Retrieve current Telegram bot token from secrets, environment, or .env."""
+def get_db_setting(key: str, default: str = "") -> str:
+    """Retrieve a setting from the Supabase bot_settings table."""
     try:
-        if "TELEGRAM_BOT_TOKEN" in st.secrets:
-            return st.secrets["TELEGRAM_BOT_TOKEN"]
-        if "BOT_TOKEN" in st.secrets:
-            return st.secrets["BOT_TOKEN"]
+        res = (
+            supabase.table("bot_settings")
+            .select("value")
+            .eq("key", key)
+            .limit(1)
+            .execute()
+        )
+        if res.data and len(res.data) > 0:
+            val = res.data[0].get("value")
+            if val is not None and str(val).strip():
+                return str(val).strip()
+    except Exception:
+        pass
+    return default
+
+
+def set_db_setting(key: str, value: str) -> bool:
+    """Persist a setting to the Supabase bot_settings table."""
+    try:
+        res = (
+            supabase.table("bot_settings")
+            .upsert({"key": key, "value": value})
+            .execute()
+        )
+        return bool(res.data)
+    except Exception:
+        return False
+
+
+def get_bot_token_with_source() -> tuple[str, str]:
+    """
+    Retrieve bot token and its source:
+    1. Supabase database (bot_settings table)
+    2. Streamlit secrets
+    3. Environment variable / .env
+    """
+    db_token = get_db_setting("telegram_bot_token")
+    if db_token:
+        return db_token, "Supabase Database"
+
+    try:
+        if "TELEGRAM_BOT_TOKEN" in st.secrets and str(st.secrets["TELEGRAM_BOT_TOKEN"]).strip():
+            return str(st.secrets["TELEGRAM_BOT_TOKEN"]).strip(), "Streamlit Secrets"
+        if "BOT_TOKEN" in st.secrets and str(st.secrets["BOT_TOKEN"]).strip():
+            return str(st.secrets["BOT_TOKEN"]).strip(), "Streamlit Secrets"
     except Exception:
         pass
 
-    token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN")
-    if token:
-        return token.strip()
+    env_token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN")
+    if env_token and env_token.strip():
+        return env_token.strip(), "Environment (.env)"
 
     if ENV_PATH.exists():
-        for line in ENV_PATH.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line.startswith("TELEGRAM_BOT_TOKEN="):
-                return line.split("=", 1)[1].strip(" '\"")
-            if line.startswith("BOT_TOKEN="):
-                return line.split("=", 1)[1].strip(" '\"")
-    return ""
+        try:
+            for line in ENV_PATH.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("TELEGRAM_BOT_TOKEN="):
+                    val = line.split("=", 1)[1].strip(" '\"")
+                    if val:
+                        return val, "Local .env file"
+                if line.startswith("BOT_TOKEN="):
+                    val = line.split("=", 1)[1].strip(" '\"")
+                    if val:
+                        return val, "Local .env file"
+        except Exception:
+            pass
+
+    return "", "None"
+
+
+def get_bot_token() -> str:
+    """Retrieve current Telegram bot token."""
+    token, _ = get_bot_token_with_source()
+    return token
 
 
 def check_telegram_bot(token: str) -> tuple[bool, dict | str]:
@@ -320,26 +375,30 @@ def check_telegram_bot(token: str) -> tuple[bool, dict | str]:
 
 
 def update_env_file(new_token: str) -> None:
-    """Safely update or add TELEGRAM_BOT_TOKEN in .env file."""
+    """Safely update or add TELEGRAM_BOT_TOKEN in .env file if available."""
     new_token = new_token.strip()
     lines = []
     found = False
 
     if ENV_PATH.exists():
-        raw_lines = ENV_PATH.read_text(encoding="utf-8").splitlines()
-        for line in raw_lines:
-            stripped = line.strip()
-            if stripped.startswith("TELEGRAM_BOT_TOKEN=") or stripped.startswith("BOT_TOKEN="):
-                if not found:
-                    lines.append(f'TELEGRAM_BOT_TOKEN="{new_token}"')
-                    found = True
-            else:
-                lines.append(line)
+        try:
+            raw_lines = ENV_PATH.read_text(encoding="utf-8").splitlines()
+            for line in raw_lines:
+                stripped = line.strip()
+                if stripped.startswith("TELEGRAM_BOT_TOKEN=") or stripped.startswith("BOT_TOKEN="):
+                    if not found:
+                        lines.append(f'TELEGRAM_BOT_TOKEN="{new_token}"')
+                        found = True
+                else:
+                    lines.append(line)
 
-    if not found:
-        lines.append(f'TELEGRAM_BOT_TOKEN="{new_token}"')
+            if not found:
+                lines.append(f'TELEGRAM_BOT_TOKEN="{new_token}"')
 
-    ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        except Exception:
+            pass
+
     os.environ["TELEGRAM_BOT_TOKEN"] = new_token
     load_dotenv(override=True)
 
@@ -348,6 +407,7 @@ def check_bot_channel_permission(chat_id: int) -> tuple[bool, str, dict | None]:
     """Test whether the configured bot can access the given channel and is an admin."""
     bot_token = get_bot_token()
     if not bot_token:
+
         return False, "Telegram Bot Token is not configured.", None
 
     async def _check():
@@ -513,11 +573,13 @@ elif selected_page == "Anime Resources":
     render_page_header("Anime Resources", "Create resources and generate Telegram deep links. Files stay on Google Drive.")
 
     # Determine bot username for link generation
-    active_bot_username = bot_username_env
+    active_bot_username = get_db_setting("bot_username") or bot_username_env
     if not active_bot_username and current_bot_token:
         ok, info = check_telegram_bot(current_bot_token)
         if ok and isinstance(info, dict):
             active_bot_username = info.get("username", "")
+            if active_bot_username:
+                set_db_setting("bot_username", active_bot_username)
 
     if not active_bot_username:
         st.warning("Bot username not detected. Configure Bot Settings or set `BOT_USERNAME` in `.env`.")
@@ -748,30 +810,50 @@ elif selected_page == "Telegram Channels":
 # Page 4: Bot Settings
 # ---------------------------------------------------------------------------
 elif selected_page == "Bot Settings":
-    render_page_header("Bot Settings", "Manage and rotate your Telegram Bot API token.")
+    render_page_header("Bot Settings", "Manage and sync your Telegram Bot API token across Streamlit and Heroku.")
+
+    current_token, token_source = get_bot_token_with_source()
 
     render_section_label("Current status")
-    if current_bot_token:
-        is_valid, bot_info = check_telegram_bot(current_bot_token)
+    if current_token:
+        is_valid, bot_info = check_telegram_bot(current_token)
         if is_valid and isinstance(bot_info, dict):
             col1, col2, col3 = st.columns(3)
-            col1.metric("Connection", "Connected")
+            col1.metric("Connection", "Connected", f"via {token_source}")
             col2.metric("Bot username", f"@{bot_info.get('username', 'N/A')}")
             col3.metric("Bot ID", str(bot_info.get("id", "N/A")))
 
             st.success(
                 f"Active bot: **{bot_info.get('first_name', 'Bot')}** "
-                f"([@{bot_info.get('username')}](https://t.me/{bot_info.get('username')}))"
+                f"([@{bot_info.get('username')}](https://t.me/{bot_info.get('username')})) — "
+                f"Token source: `{token_source}`"
             )
         else:
-            st.error(f"Current token is invalid or unreachable: {bot_info}")
+            st.error(f"Current token is invalid or unreachable ({token_source}): {bot_info}")
     else:
         st.warning("No Telegram Bot API token is currently configured.")
+
+    render_section_label("Supabase Database Setup (One-Time)")
+    st.markdown(
+        """
+        To allow your **Heroku Bot Worker** and **Streamlit Admin Panel** to share the bot token automatically without configuring secrets twice,
+        make sure the `bot_settings` table exists in your **Supabase SQL Editor**:
+        """
+    )
+    st.code(
+        """CREATE TABLE IF NOT EXISTS bot_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);""",
+        language="sql",
+    )
 
     render_section_label("Update bot API key")
     st.write(
         "Enter a new Telegram Bot API token generated from "
-        "[@BotFather](https://t.me/BotFather) on Telegram."
+        "[@BotFather](https://t.me/BotFather) on Telegram. "
+        "Saving here persists it directly into **Supabase**, so your Heroku bot automatically detects it."
     )
 
     with st.form("update_bot_token_form"):
@@ -781,7 +863,7 @@ elif selected_page == "Bot Settings":
             placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz",
             help="Paste the bot token from @BotFather here.",
         )
-        token_submitted = st.form_submit_button("Test & save new token", use_container_width=True, type="primary")
+        token_submitted = st.form_submit_button("Test & save token to Supabase", use_container_width=True, type="primary")
 
     if token_submitted:
         if not new_token_input.strip():
@@ -792,17 +874,28 @@ elif selected_page == "Bot Settings":
                 valid, info = check_telegram_bot(token_to_test)
 
             if valid and isinstance(info, dict):
+                saved_to_db = set_db_setting("telegram_bot_token", token_to_test)
+                if info.get("username"):
+                    set_db_setting("bot_username", info["username"])
+
                 try:
                     update_env_file(token_to_test)
+                except Exception:
+                    pass
+
+                if saved_to_db:
                     st.success(
-                        f"Token successfully updated and saved.\n\n"
+                        f"✅ **Token successfully validated and saved to Supabase!**\n\n"
                         f"- **Bot name**: {info.get('first_name')}\n"
                         f"- **Username**: @{info.get('username')}\n"
                         f"- **Bot ID**: `{info.get('id')}`\n\n"
-                        f"If the bot worker process is running in the background, restart it to reload the new token."
+                        f"Your Heroku bot worker (`bot/main.py`) will automatically fetch this token without any restart needed."
                     )
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Failed to update `.env` file: {e}")
+                else:
+                    st.warning(
+                        f"Token is valid and was updated in memory/local env, but could not be saved to Supabase `bot_settings` table. "
+                        f"Please run the `CREATE TABLE bot_settings` SQL script above in your Supabase SQL Editor."
+                    )
+                st.rerun()
             else:
-                st.error(f"Telegram API rejected this token: {info}")
+                st.error(f"Telegram API rejected this token: {info}")

@@ -134,7 +134,17 @@ channel_id    foreign key -> telegram_channels.id
 
 Use a unique constraint on `(resource_id, channel_id)`.
 
-The bot only requires these four core tables. Older experimental tables such as `verification_logs`, `pending_downloads`, and `channel_join_requests` are not required by the current implementation.
+### `bot_settings` (for Streamlit & Heroku synchronization)
+
+```sql
+CREATE TABLE IF NOT EXISTS bot_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+This table acts as the single source of truth for the bot token (`key = 'telegram_bot_token'`) and bot username (`key = 'bot_username'`). When you enter or update the token in the Streamlit UI, it updates Supabase, and the Heroku bot worker loads it immediately.
 
 ## 4. Telegram bot permissions
 
@@ -165,24 +175,45 @@ The command is normally:
 
 It prints the Telegram channel ID.
 
-## 6. Start the bot
+## 6. Start the bot locally or deploy to Heroku
 
+### Option A: Local Run
 From the project root:
 
 ```powershell
 .venv\Scripts\python.exe bot\main.py
 ```
 
-You should see a log similar to:
+### Option B: Deploy Bot to Render (Free Tier Web Service or Background Worker)
+1. Go to [Render Dashboard](https://dashboard.render.com) and click **New +** -> **Web Service** (or use **Blueprints** with `render.yaml`).
+2. Connect your GitHub repository.
+3. Configure settings:
+   - **Environment**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `python bot/main.py`
+   - **Plan**: `Free`
+4. Under **Environment Variables**, add:
+   - `SUPABASE_URL` = `https://YOUR_PROJECT.supabase.co`
+   - `SUPABASE_KEY` = `YOUR_SUPABASE_SERVICE_OR_ANON_KEY`
+   *(No need to enter `TELEGRAM_BOT_TOKEN` on Render—it dynamically loads from Supabase!)*
+5. Click **Deploy Web Service**. Render will keep it alive and automatically pass health checks.
 
-```text
-Starting @YourBot ...
-```
+### Option C: Deploy Bot to Heroku
+1. Create a new Heroku app (or link your Git repository to Heroku).
+2. Set only two Config Vars in your Heroku App Settings:
+   - `SUPABASE_URL` = `https://YOUR_PROJECT.supabase.co`
+   - `SUPABASE_KEY` = `YOUR_SUPABASE_SERVICE_OR_ANON_KEY`
+   *(You do NOT need to set `TELEGRAM_BOT_TOKEN` on Heroku—it will automatically fetch it from Supabase!)*
+3. Deploy your repository (Heroku will automatically detect `Procfile` with `worker: python bot/main.py`).
+4. Ensure the **worker** dyno is turned ON in the Heroku Resources tab:
+   ```bash
+   heroku ps:scale worker=1
+   ```
 
-Keep this terminal running.
 
-## 7. Start the admin panel
+## 7. Start the admin panel (Streamlit)
 
+### Option A: Local Run
 Open another terminal:
 
 ```powershell
@@ -190,7 +221,15 @@ cd "D:\Code Playground\AnimeWorld"
 .venv\Scripts\python.exe -m streamlit run admin\app.py
 ```
 
-Streamlit will open the admin panel in your browser.
+### Option B: Deploy Streamlit (Streamlit Community Cloud)
+1. Deploy `admin/app.py` to Streamlit Cloud.
+2. Under App Settings -> Secrets, provide:
+   ```toml
+   SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
+   SUPABASE_KEY = "YOUR_SUPABASE_KEY"
+   ```
+3. Open your deployed Streamlit UI, go to **Bot Settings**, and enter your Telegram Bot API token. It saves to Supabase and immediately connects your Heroku bot!
+
 
 ## 8. Admin workflow
 

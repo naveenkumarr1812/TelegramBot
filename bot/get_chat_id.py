@@ -3,14 +3,18 @@ import sys
 
 from aiogram import Bot
 
-from config import TELEGRAM_BOT_TOKEN
+from config import get_active_bot_token
 
 
 async def main():
     if len(sys.argv) != 2:
         print("Usage: python get_chat_id.py @channelusername")
         return
-    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    token = get_active_bot_token()
+    if not token:
+        print("Error: No bot token configured in Supabase or environment.")
+        return
+    bot = Bot(token=token)
     try:
         me = await bot.get_me()
         chat = await bot.get_chat(sys.argv[1])
@@ -24,3 +28,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
